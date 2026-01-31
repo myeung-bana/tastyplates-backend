@@ -1,0 +1,7 @@
+# Nhost configuration
+#
+# Note: running `nhost init` can regenerate/extend config depending on CLI version.
+# Keep this file source-controlled for Cloud deployments and consistent local dev.
+
+name = "tastyplates-backend"
+
