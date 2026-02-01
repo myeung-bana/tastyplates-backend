@@ -5,3 +5,24 @@
 
 name = "tastyplates-backend"
 
+# Nhost Run service configuration (Express backend)
+[[run.services]]
+name = "backend"
+port = 4000
+publish = true  # Makes service publicly accessible
+
+# Resource allocation
+[[run.services.resources.compute]]
+cpu = 500       # 0.5 vCPU
+memory = 1024   # 1 GB RAM
+
+# Start command
+[[run.services.command]]
+value = "yarn start"
+
+# Health check endpoint
+[[run.services.healthcheck]]
+port = 4000
+initialDelaySeconds = 30
+probePath = "/healthz"
+

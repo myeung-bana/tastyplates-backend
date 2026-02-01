@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Development files
+.git/
+.gitignore
+.DS_Store
+*.md
+!README.md
+
+# Nhost local data
+.nhost/
+
+# Editor directories
+.vscode/
+.idea/
+
+# Documentation
+documentation/
