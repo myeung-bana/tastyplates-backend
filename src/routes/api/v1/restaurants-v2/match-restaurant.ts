@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { hasuraAdminQuery } from '../../../_lib/hasuraAdminClient';
+import { hasuraAdminQuery } from '../../../../lib/hasuraAdminClient.js';
 
 function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -68,7 +68,7 @@ const MATCH_RESTAURANT_BY_NAME_ADDRESS = `
   }
 `;
 
-export default async function matchRestaurant(req: Request, res: Response) {
+export async function matchRestaurant(req: Request, res: Response) {
   try {
     const { place_id, name, address, latitude, longitude } = (req.body ?? {}) as {
       place_id?: string;
@@ -188,4 +188,3 @@ export default async function matchRestaurant(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: 'Internal server error', message });
   }
 }
-

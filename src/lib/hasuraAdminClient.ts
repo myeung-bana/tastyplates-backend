@@ -1,4 +1,4 @@
-import { getEnv } from './env';
+import { getEnv } from './env.js';
 
 export type GraphQLResponse<TData> = {
   data?: TData;
@@ -30,4 +30,3 @@ export async function hasuraAdminQuery<TData = unknown>(
 
   return (await res.json()) as GraphQLResponse<TData>;
 }
-

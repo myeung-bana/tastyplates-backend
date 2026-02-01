@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
-import { getEnv } from '../../../_lib/env';
+import { getEnv } from '../../../../lib/env.js';
 
-export default async function downloadGooglePhoto(req: Request, res: Response) {
+export async function downloadGooglePhoto(req: Request, res: Response) {
   try {
     const { photoUrl } = (req.body ?? {}) as { photoUrl?: string };
 
@@ -45,4 +45,3 @@ export default async function downloadGooglePhoto(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: message });
   }
 }
-
