@@ -1,274 +1,126 @@
 # Deployment Guide
 
-## ✅ Setup Complete!
-
-Your backend is now configured for **Nhost Run** deployment with:
-
-- ✅ Express server running on port 4000
-- ✅ Nhost Run configuration in `nhost.toml`
-- ✅ Production-ready Dockerfile
-- ✅ All dependencies installed
-- ✅ TypeScript type-checking passes
+This is a single standalone Node.js/Express application. Deploy the entire `tastyplates-backend/` directory as one process. There is no nested sub-app or separate functions folder anymore.
 
 ---
 
-## 🚀 Next Steps
+## Plesk (recommended)
 
-### 1. Test Locally
+### Plesk field reference
 
-Start the Nhost services and your backend:
+| Field | Value |
+|-------|-------|
+| **Node.js version** | 22 |
+| **Package manager** | npm (lockfile is `package-lock.json`) |
+| **Document root** | Same as application root (API-only, no static files) |
+| **Application mode** | production |
+| **Application URL** | Your public API base URL, e.g. `https://api.yourdomain.com` |
+| **Application root** | Server path to this `tastyplates-backend/` directory |
+| **Application startup file** | `src/server.ts` with Node arguments `-r tsx/cjs` — equivalent to `npm start` |
 
-```bash
-# Terminal 1: Start Nhost (Postgres + Hasura)
-nhost up
+If Plesk accepts an npm/yarn script instead of a file, use **`npm start`** (which runs `node -r tsx/cjs src/server.ts`). `tsx` is in `dependencies`, so it is installed after a plain `npm install`.
 
-# Terminal 2: Start backend server
-yarn dev
+If Plesk only accepts a compiled `.js` file, run `npm run build` first (outputs to `dist/`) and set the startup file to **`dist/server.js`** with no extra Node arguments.
+
+### Custom environment variables (Plesk panel → Node.js app → Environment variables)
+
+Copy every variable from `env.example` and fill in real values. At minimum:
+
+```
+HASURA_GRAPHQL_URL=https://xxx.nhost.run/v1/graphql
+HASURA_GRAPHQL_ADMIN_SECRET=<your-secret>
+NHOST_AUTH_URL=https://xxx.auth.ap-southeast-1.nhost.run
+UPSTASH_REDIS_REST_URL=https://xxx.upstash.io
+UPSTASH_REDIS_REST_TOKEN=<your-token>
+S3_ACCESS_KEY_ID=<key>
+S3_SECRET_ACCESS_KEY=<secret>
+S3_REGION=ap-northeast-2
+S3_BUCKET_NAME=<bucket>
+NODE_ENV=production
 ```
 
-Test the health endpoint:
+Plesk injects `PORT` automatically and the app defaults to `3000` if absent.
+
+### Health check
+
+After deploying, verify:
 
 ```bash
-curl http://localhost:4000/healthz
+curl https://api.yourdomain.com/healthz
 ```
 
-Expected response:
+Expected (when all services are reachable):
 ```json
 {
-  "ok": true,
-  "service": "tastyplates-backend",
-  "timestamp": "2026-01-31T..."
-}
-```
-
----
-
-### 2. Link to Nhost Cloud
-
-If you haven't already:
-
-```bash
-# Login to Nhost
-nhost login
-
-# Link this project to your Nhost cloud project
-nhost link
-```
-
-This will create `.nhost/nhost.yaml` with your project configuration.
-
----
-
-### 3. Deploy to Nhost Run
-
-```bash
-nhost deploy
-```
-
-This command will:
-1. Package your code
-2. Build the Docker image
-3. Deploy to Nhost Run
-4. Provide a public URL like: `https://backend-[id].[region].nhost.run`
-
----
-
-### 4. Configure Environment Variables
-
-Go to [Nhost Dashboard](https://app.nhost.io):
-
-1. Select your project
-2. Navigate to **Run** → **backend** service
-3. Click **Environment Variables**
-4. Add these variables:
-
-```bash
-# Hasura (get these from Nhost project settings)
-HASURA_GRAPHQL_ADMIN_SECRET=your-admin-secret
-HASURA_GRAPHQL_URL=https://[subdomain].nhost.run/v1/graphql
-
-# Upstash Redis (if using rate limiting/caching)
-UPSTASH_REDIS_REST_URL=your-upstash-url
-UPSTASH_REDIS_REST_TOKEN=your-upstash-token
-
-# Frontend URL (for CORS and photo proxy)
-NEXT_PUBLIC_APP_URL=https://yourdomain.com
-
-# S3 (if keeping S3 + Sharp for uploads)
-S3_ACCESS_KEY_ID=your-key
-S3_SECRET_ACCESS_KEY=your-secret
-S3_REGION=ap-northeast-2
-S3_BUCKET_NAME=your-bucket
-S3_BUCKET_DOMAIN=your-domain
-
-# Image optimization (optional)
-IMAGE_MAX_WIDTH=1600
-IMAGE_MAX_HEIGHT=1600
-IMAGE_AVIF_QUALITY=60
-IMAGE_WEBP_QUALITY=75
-```
-
----
-
-### 5. Update Frontend Configuration
-
-In your `tastyplates-v2-1` project:
-
-**Create/update `.env.local`:**
-
-```bash
-# Development - points to local backend
-NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
-
-# Production - uncomment and update after deploying
-# NEXT_PUBLIC_BACKEND_URL=https://backend-[id].[region].nhost.run
-```
-
-**Update your service files** (e.g., `restaurantV2Service.ts`):
-
-```typescript
-const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
-
-// Change API calls from:
-fetch('/api/v1/restaurants-v2/match-restaurant', options)
-
-// To:
-fetch(`${API_BASE}/api/v1/restaurants-v2/match-restaurant`, options)
-```
-
----
-
-## 🤖 Adding AI Services
-
-Ready to add Gemini or other AI services? Here's how:
-
-### Install AI SDK
-
-```bash
-# For Google Gemini
-yarn add @google/generative-ai
-
-# Or for OpenAI
-yarn add openai
-
-# Or for Anthropic Claude
-yarn add @anthropic-ai/sdk
-```
-
-### Create an AI Route
-
-**Example: `src/routes/api/v1/ai/chat.ts`**
-
-```typescript
-import type { Request, Response } from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-export async function chat(req: Request, res: Response) {
-  try {
-    const { message, conversationHistory } = req.body;
-    
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
-    }
-
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-    // For streaming responses (recommended for better UX)
-    const result = await model.generateContentStream(message);
-    
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      res.write(`data: ${JSON.stringify({ text })}\n\n`);
-    }
-
-    res.write('data: [DONE]\n\n');
-    res.end();
-  } catch (error) {
-    console.error('AI chat error:', error);
-    res.status(500).json({ error: 'AI service failed' });
+  "status": "healthy",
+  "uptime": 120,
+  "checks": {
+    "hasura": { "status": "ok", "latencyMs": 15 },
+    "redis": { "status": "ok", "latencyMs": 3 },
+    "s3": { "status": "ok" }
   }
 }
 ```
 
-### Register the Route
+---
 
-Add to `src/index.ts`:
+## Docker / VPS / Cloud Run
 
-```typescript
-import { chat } from './routes/api/v1/ai/chat.js';
-
-// ... other routes ...
-
-app.post('/api/v1/ai/chat', chat);
-```
-
-### Add Environment Variable
-
-Add to your Nhost environment variables:
+Build and run with the included `Dockerfile`:
 
 ```bash
-GEMINI_API_KEY=your-api-key
+docker build -t tastyplates-backend .
+
+docker run -p 3000:3000 \
+  -e HASURA_GRAPHQL_URL=... \
+  -e HASURA_GRAPHQL_ADMIN_SECRET=... \
+  -e NHOST_AUTH_URL=... \
+  -e UPSTASH_REDIS_REST_URL=... \
+  -e UPSTASH_REDIS_REST_TOKEN=... \
+  -e S3_ACCESS_KEY_ID=... \
+  -e S3_SECRET_ACCESS_KEY=... \
+  -e S3_REGION=ap-northeast-2 \
+  -e S3_BUCKET_NAME=... \
+  -e NODE_ENV=production \
+  tastyplates-backend
 ```
 
-And to `env.example`:
+The `Dockerfile` uses a multi-stage build: `npm run build` (TypeScript → `dist/`) then `node dist/server.js` in the runner stage. No `tsx` is needed at runtime for the Docker build.
+
+---
+
+## Nhost Run (optional)
+
+If you still want to deploy via Nhost Run, `nhost.toml` at the repo root defines a Run service on port 3000 using `node dist/server.js`. Run `npm run build` as a pre-deploy step, then:
 
 ```bash
-# AI Service (Gemini)
-GEMINI_API_KEY=replace-me
+nhost login
+nhost link    # first time
+nhost deploy
 ```
 
----
-
-## 📊 Monitoring
-
-After deployment, monitor your service in Nhost Dashboard:
-
-- **Logs**: View real-time logs from your Express server
-- **Metrics**: CPU, memory usage, request rates
-- **Health**: Automated health checks via `/healthz`
+Set environment variables in Nhost Dashboard → Run → backend → Environment Variables.
 
 ---
 
-## 🔧 Troubleshooting
+## Frontend configuration
 
-### Build fails on Nhost
+In `tastyplates-v2-1`, set:
 
-1. Check logs: `nhost logs -f backend`
-2. Verify Dockerfile runs locally:
-   ```bash
-   docker build -t test-backend .
-   docker run -p 4000:4000 test-backend
-   ```
+```env
+NEXT_PUBLIC_BACKEND_URL=https://api.yourdomain.com
+```
 
-### Health check fails
-
-1. Ensure server starts on port 4000 (or PORT env var)
-2. Check `/healthz` returns 200 status
-3. Verify `initialDelaySeconds` in `nhost.toml` is long enough
-
-### Frontend can't reach backend
-
-1. Verify CORS is enabled (already configured in `src/index.ts`)
-2. Check `NEXT_PUBLIC_BACKEND_URL` is set correctly
-3. Ensure backend is deployed and running
+All API calls should point to `${NEXT_PUBLIC_BACKEND_URL}/api/v1/...`.
 
 ---
 
-## 📝 What's Next?
+## Troubleshooting
 
-1. ✅ Test locally (`yarn dev`)
-2. ✅ Deploy to Nhost (`nhost deploy`)
-3. ⬜ Set environment variables in Nhost Dashboard
-4. ⬜ Update frontend to use backend URL
-5. ⬜ Implement remaining API routes (following feed, uploads)
-6. ⬜ Add AI services (Gemini/OpenAI)
-7. ⬜ Test end-to-end with frontend
-
----
-
-**Need help?** Check the [Nhost Run docs](https://docs.nhost.io/run) or the main README.md.
+| Symptom | Fix |
+|---------|-----|
+| `HASURA_GRAPHQL_URL or NHOST_HASURA_URL must be set` at startup | Set `HASURA_GRAPHQL_URL` in env |
+| `Invalid environment configuration` at startup | Check all required vars in `env.example` are set |
+| Redis errors on every request | Verify `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` |
+| `/healthz` returns `degraded` | Check `checks` payload — each service reports its own error |
+| Plesk `npm start` fails (tsx not found) | Ensure `npm install` (not `npm install --omit=dev`) was run — `tsx` is in `dependencies` |

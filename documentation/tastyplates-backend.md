@@ -1,4 +1,8 @@
-Here's a comprehensive, actionable next-steps guide for modularizing your Tastyplates backend:---
+For **production deployment** (Plesk, Nhost Run, env vars), use **`DEPLOYMENT.md`** at the repo root of `tastyplates-backend`.
+
+The rest of this note is a **modularization / architecture** guide for the backend.
+
+---
 
 ## Detailed breakdown
 

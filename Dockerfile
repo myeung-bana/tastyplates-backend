@@ -1,34 +1,27 @@
-# Multi-stage build for production
-FROM node:18-alpine AS base
-
+FROM node:22-alpine AS base
 WORKDIR /app
 
 # Install dependencies
 FROM base AS deps
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
-# Build stage (optional - currently using tsx at runtime)
+# Build stage — compile TypeScript to dist/
 FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-# Uncomment if you want to compile TypeScript:
-# RUN yarn build
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
 
-# Production stage
+# Production image
 FROM base AS runner
 ENV NODE_ENV=production
 
-# Copy dependencies
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package.json ./package.json
+COPY --from=builder /app/dist ./dist
+COPY package.json ./
 
-# Copy source code
-COPY src ./src
-COPY tsconfig.json ./
+EXPOSE 3000
 
-# Expose port
-EXPOSE 4000
-
-# Start server (using tsx for now - change to "node dist/index.js" if you compile)
-CMD ["yarn", "start"]
+CMD ["node", "dist/server.js"]

@@ -1,34 +1,46 @@
 import type { Request, Response } from 'express';
-import { getEnv } from '../../../../lib/env.js';
+import { rateLimitOrThrow, uploadRateLimit } from '../../../../lib/rate-limit';
 
-export async function downloadGooglePhoto(req: Request, res: Response) {
+export default async (req: Request, res: Response): Promise<void> => {
+  const ip =
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+    (req.headers['x-real-ip'] as string) ||
+    'unknown';
+
+  const rl = await rateLimitOrThrow(ip, uploadRateLimit);
+  if (!rl.ok) {
+    res.status(429).set('Retry-After', String(rl.retryAfter)).json({
+      success: false,
+      error: 'Rate limit exceeded.',
+      retryAfter: rl.retryAfter,
+    });
+    return;
+  }
+
   try {
-    const { photoUrl } = (req.body ?? {}) as { photoUrl?: string };
+    const { photoUrl } = req.body || {};
 
     if (!photoUrl || typeof photoUrl !== 'string') {
-      return res.status(400).json({ success: false, error: 'Photo URL is required' });
+      res.status(400).json({ success: false, error: 'Photo URL is required' });
+      return;
     }
 
     if (!photoUrl.includes('maps.googleapis.com') && !photoUrl.includes('googleapis.com')) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid photo URL. Only Google Places photos are allowed.',
-      });
+      res.status(400).json({ success: false, error: 'Only Google Places photo URLs are allowed.' });
+      return;
     }
 
-    const env = getEnv();
-    const referer = env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const referer =
+      process.env.APP_URL ||
+      process.env.NHOST_BACKEND_URL ||
+      'https://tastyplates.co';
 
     const response = await fetch(photoUrl, {
       headers: { Referer: referer },
     });
 
     if (!response.ok) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to download image from Google',
-        details: `HTTP ${response.status} ${response.statusText}`,
-      });
+      throw new Error(`Failed to download image: ${response.statusText}`);
     }
 
     const arrayBuffer = await response.arrayBuffer();
@@ -36,12 +48,13 @@ export async function downloadGooglePhoto(req: Request, res: Response) {
     const base64 = buffer.toString('base64');
     const mimeType = response.headers.get('content-type') || 'image/jpeg';
 
-    return res.status(200).json({
-      success: true,
-      data: `data:${mimeType};base64,${base64}`,
+    res.json({ success: true, data: `data:${mimeType};base64,${base64}` });
+  } catch (error: any) {
+    console.error('[images/download-google-photo] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to download image from Google',
+      details: error.message,
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return res.status(500).json({ success: false, error: message });
   }
-}
+};
